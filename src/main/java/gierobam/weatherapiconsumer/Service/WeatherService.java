@@ -7,9 +7,12 @@ import gierobam.weatherapiconsumer.Model.DailyWeatherData;
 import gierobam.weatherapiconsumer.Model.WeatherEndpointRequestData;
 import gierobam.weatherapiconsumer.Repository.WeatherEndpointRequestDataRepository;
 import lombok.Setter;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import java.security.InvalidParameterException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -19,13 +22,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-@org.springframework.stereotype.Service
+@Service
 @Setter
-public class Service {
+public class WeatherService {
 
     WeatherEndpointRequestDataRepository weatherEndpointRequestDataRepository;
     private RestTemplate restTemplate;
-    public Service(WeatherEndpointRequestDataRepository weatherEndpointRequestDataRepository) {
+    public WeatherService(WeatherEndpointRequestDataRepository weatherEndpointRequestDataRepository) {
         this.weatherEndpointRequestDataRepository = weatherEndpointRequestDataRepository;
         this.restTemplate = new RestTemplate();
     }
@@ -33,7 +36,10 @@ public class Service {
     private final String baseUri = "https://archive-api.open-meteo.com/v1/archive";
 
     @Transactional
-    public List<DailyWeatherData> getArchiveDataByCoordinates(String latitude, String longitude) throws JsonProcessingException {
+    public List<DailyWeatherData> getArchiveDataByCoordinates(Double latitude, Double longitude) throws JsonProcessingException, InvalidParameterException {
+        if(!isValidCoordinates(latitude, longitude)) {
+            throw new InvalidParameterException("The entered coordinates are invalid! Longitude must be in range of -180 to 180° and latitude must be in range of -90 to 90°.");
+        }
         URI uri = createURIRequest(latitude, longitude);
         String jsonData = restTemplate.getForObject(uri, String.class);
         ObjectMapper objectMapper = new ObjectMapper();
@@ -46,7 +52,7 @@ public class Service {
         List<Double> rainSums = (List<Double>) dailyDataMap.get("rain_sum");
         List<Double> snowfallSums = (List<Double>) dailyDataMap.get("snowfall_sum");
 
-        weatherEndpointRequestDataRepository.save(new WeatherEndpointRequestData(LocalDateTime.now(), Double.parseDouble(latitude), Double.parseDouble(longitude)));
+        weatherEndpointRequestDataRepository.save(new WeatherEndpointRequestData(LocalDateTime.now(), latitude, longitude));
 
         return IntStream.range(0, days.size())
                 .mapToObj(i -> {
@@ -65,7 +71,7 @@ public class Service {
         return weatherEndpointRequestDataRepository.findAll();
     }
 
-    private URI createURIRequest(String latitude, String longitude) {
+    private URI createURIRequest(Double latitude, Double longitude) {
 
         LocalDate endDate = LocalDate.now().minusDays(1);
         LocalDate startDate = endDate.minusDays(6);
@@ -84,5 +90,9 @@ public class Service {
                 .build()
                 .encode()
                 .toUri();
+    }
+
+    private boolean isValidCoordinates(Double latitude, Double longitude) {
+        return latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
     }
 }

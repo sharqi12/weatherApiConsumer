@@ -3,6 +3,7 @@ package gierobam.weatherapiconsumer.Service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import gierobam.weatherapiconsumer.Model.DailyWeatherData;
 import gierobam.weatherapiconsumer.Repository.WeatherEndpointRequestDataRepository;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -11,24 +12,22 @@ import org.mockito.MockitoAnnotations;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
+import java.security.InvalidParameterException;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
-class ServiceTest {
+class WeatherServiceTest {
     @Mock
     private WeatherEndpointRequestDataRepository weatherEndpointRequestDataRepository;
 
-    private Service service;
-
-    private final String baseUri = "https://archive-api.open-meteo.com/v1/archive";
-
+    private WeatherService weatherService;
     @BeforeEach
     public void setup() {
         MockitoAnnotations.openMocks(this);
-        service = new Service(weatherEndpointRequestDataRepository);
+        weatherService = new WeatherService(weatherEndpointRequestDataRepository);
     }
 
     @Test
@@ -36,9 +35,9 @@ class ServiceTest {
         RestTemplate restTemplate = Mockito.mock(RestTemplate.class);
         when(restTemplate.getForObject(any(URI.class), any(Class.class))).thenReturn(getJsonData());
 
-        service.setRestTemplate(restTemplate);
+        weatherService.setRestTemplate(restTemplate);
 
-        List<DailyWeatherData> actualData = service.getArchiveDataByCoordinates("52.5", "13.400009");
+        List<DailyWeatherData> actualData = weatherService.getArchiveDataByCoordinates(52.5, 13.400009);
 
         List<DailyWeatherData> shortenedExpectedData = Arrays.asList(
                 new DailyWeatherData("2023-05-20", "05:00", "21:04", 0.0, 0.0),
@@ -55,6 +54,37 @@ class ServiceTest {
             assertEquals(expected.getRain_sum(), actual.getRain_sum());
             assertEquals(expected.getSnowfall_sum(), actual.getSnowfall_sum());
         }
+    }
+
+    @Test
+    public void testInvalidLatitudeThrowsException() {
+
+        Double invalidLatitude = 100.0;
+
+        Assertions.assertThrows(InvalidParameterException.class, () -> {
+            weatherService.getArchiveDataByCoordinates(invalidLatitude, 0.0);
+        });
+    }
+
+    @Test
+    public void testInvalidLongitudeThrowsException() {
+
+        Double invalidLongitude = 1000.0;
+
+        Assertions.assertThrows(InvalidParameterException.class, () -> {
+            weatherService.getArchiveDataByCoordinates(50.5, invalidLongitude);
+        });
+    }
+
+    @Test
+    public void testInvalidCoordinatesThrowsException() {
+
+        Double invalidLatitude = 125.5;
+        Double invalidLongitude = -502.69;
+
+        Assertions.assertThrows(InvalidParameterException.class, () -> {
+            weatherService.getArchiveDataByCoordinates(invalidLatitude, invalidLongitude);
+        });
     }
 
     private String getJsonData() {
